@@ -1,0 +1,84 @@
+version: '3'
+
+services:
+
+  frontend:
+    restart: on-failure
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    networks:
+      - custom_network
+    depends_on:
+      - dotnet_gateway_api
+    ports:
+      - "4201:4200"
+
+  face_recognition_model:
+    restart: on-failure
+    build:
+      context: ./image_engine
+    container_name: face_recognition_model
+    networks:
+      - custom_network
+    depends_on:
+      - rabbitmq
+    volumes:
+      - ./image_engine/dev.env:/app/dev.env
+      - ./image_engine/image_processing_identifier.py:/app/image_processing_identifier.py
+
+  dotnet_gateway_api:
+    restart: on-failure
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    container_name: dotnet_gateway_api
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+    volumes:
+      - ./cache_data:/App/cache_data
+    networks:
+      - custom_network
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    command: rabbitmq-server
+    # ports:
+    #   - 5672:5672
+    #   - 15672:15672
+    restart: on-failure
+    networks:
+      - custom_network
+
+  db:
+    image: postgres
+    restart: on-failure
+    container_name: postgre_db
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - custom_network
+  adminer:
+    image: adminer
+    restart: on-failure
+    ports:
+      - 8383:8080
+    networks:
+      - custom_network
+
+networks:
+  custom_network:
+    driver: bridge
